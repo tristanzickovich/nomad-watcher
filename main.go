@@ -5,6 +5,8 @@ import (
     "fmt"
     "syscall"
     "encoding/json"
+    "path/filepath"
+    "io"
 
     flags "github.com/jessevdk/go-flags"
     log "github.com/Sirupsen/logrus"
@@ -18,6 +20,7 @@ import (
 var (
     version string = "undef"
     rotatedFile *dailyrotate.File
+    rotatedFileName string
 )
 
 type Options struct {
@@ -25,6 +28,20 @@ type Options struct {
     LogRotate bool   `env:"LOG_ROTATE" long:"log-rotate" description:"enable log rotation"`
     LogFile string   `env:"LOG_FILE"   long:"log-file"   description:"path to JSON log file"`
     EventFile string `env:"EVENT_FILE" long:"event-file" description:"path to JSON event file" required:"true"`
+}
+
+func rotatingFileClosed(path string, didRotate bool) {
+    fmt.Printf("we just closed a file '%s', didRotate: %v\n", path, didRotate)
+}
+
+func initRotatedFile(fileName string) {
+    var err error
+    rotatedFileName = filepath.Join(fileName, "2006-01-02.log")
+    rotatedFile, err = dailyrotate.NewFile(rotatedFileName, rotatingFileClosed)
+    _,err  = io.WriteString(rotatedFile,"")
+    if err != nil {
+      log.Panic("err: %s", err)
+    }
 }
 
 func main() {
@@ -56,22 +73,26 @@ func main() {
         log.SetOutput(logFp)
     }
 
+    log.Debug("hi there! (tickertape tickertape)")
+    log.Info("version: %s", version)
+
     if opts.LogRotate {
-        log.Info("log-rotate enabled")
+        log.Info("Log Rotation enabled")
+        initRotatedFile(opts.EventFile)
+        log.SetOutput(rotatedFile)
+    } else {
+        rotatedFileName = opts.EventFile
     }
 
-    log.Debug("hi there! (tickertape tickertape)")
-    log.Infof("version: %s", version)
 
-    evtsFp, err := os.OpenFile(opts.EventFile, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0600)
-    checkError(fmt.Sprintf("error opening %s", opts.EventFile), err)
-
+    evtsFp, err := os.OpenFile(rotatedFileName, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0600)
+    checkError(fmt.Sprintf("error opening %s", rotatedFileName), err)
     defer evtsFp.Close()
 
     nomadClient, err := nomad.NewClient(nomad.DefaultConfig())
     checkError("creating Nomad client", err)
 
-    enc := json.NewEncoder(evtsFp)
+    enc := json.NewEncoder(rotatedFile)
 
     eventChan := make(chan interface{})
 
