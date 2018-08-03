@@ -3,12 +3,11 @@ package main
 import (
     "os"
     "fmt"
-    //TODO: remove the reflect package after debugging
-    "reflect"
     "syscall"
     "encoding/json"
     "path/filepath"
     "io"
+    "archive/zip"
 
     flags "github.com/jessevdk/go-flags"
     log "github.com/Sirupsen/logrus"
@@ -39,6 +38,11 @@ func rotatingFileClosed(path string, didRotate bool) {
     }
     go func() {
         log.Info("This is where to compress and email the log files")
+        err := ZipFiles("output", path)
+        if err != nil {
+            log.Fatal(err)
+        }
+        fmt.Println("Zipped File: " + "output")
     }()
 }
 
@@ -136,4 +140,44 @@ func main() {
         log.Info("HERE", e)
         checkError("serializing event", enc.Encode(e))
     }
+}
+
+func ZipFiles(filename string, file string) error {
+
+    newfile, err := os.Create(filename)
+    if err != nil {
+        return err
+    }
+    defer newfile.Close()
+
+    zipWriter := zip.NewWriter(newfile)
+    defer zipWriter.Close()
+
+    zipfile, err := os.Open(file)
+    if err != nil {
+        return err
+    }
+    defer zipfile.Close()
+
+    info, err := zipfile.Stat()
+    if err != nil {
+        return err
+    }
+
+    header, err := zip.FileInfoHeader(info)
+    if err != nil {
+        return err
+    }
+
+    header.Method = zip.Deflate
+
+    writer, err := zipWriter.CreateHeader(header)
+    if err != nil {
+        return err
+    }
+    _, err = io.Copy(writer, zipfile)
+    if err != nil {
+        return err
+    }
+    return nil
 }
