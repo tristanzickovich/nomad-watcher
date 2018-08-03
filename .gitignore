@@ -1,2 +1,5 @@
 .godeps/
 stage/
+.idea/
+rotated-logs/
+*logs*

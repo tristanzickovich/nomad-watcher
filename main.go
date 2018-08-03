@@ -3,6 +3,8 @@ package main
 import (
     "os"
     "fmt"
+    //TODO: remove the reflect package after debugging
+    "reflect"
     "syscall"
     "encoding/json"
     "path/filepath"
@@ -32,16 +34,23 @@ type Options struct {
 
 func rotatingFileClosed(path string, didRotate bool) {
     fmt.Printf("we just closed a file '%s', didRotate: %v\n", path, didRotate)
+    if !didRotate {
+        return
+    }
+    go func() {
+        log.Info("This is where to compress and email the log files")
+    }()
 }
 
-func initRotatedFile(fileName string) {
+func initRotatedFile() string{
     var err error
-    rotatedFileName = filepath.Join(fileName, "2006-01-02.log")
-    rotatedFile, err = dailyrotate.NewFile(rotatedFileName, rotatingFileClosed)
+    rotatedFilePath := filepath.Join("rotated-logs", "2006-01-02.log")
+    rotatedFile, err = dailyrotate.NewFile(rotatedFilePath, rotatingFileClosed)
     _,err  = io.WriteString(rotatedFile,"")
     if err != nil {
       log.Panic("err: %s", err)
     }
+    return rotatedFilePath
 }
 
 func main() {
@@ -73,17 +82,13 @@ func main() {
         log.SetOutput(logFp)
     }
 
-    log.Debug("hi there! (tickertape tickertape)")
-    log.Info("version: %s", version)
-
     if opts.LogRotate {
-        log.Info("Log Rotation enabled")
-        initRotatedFile(opts.EventFile)
+        log.Info("Log Rotation enabled, please see /rotated-logs/<<date>> for most recent logs" )
+        rotatedFileName = initRotatedFile()
         log.SetOutput(rotatedFile)
     } else {
         rotatedFileName = opts.EventFile
     }
-
 
     evtsFp, err := os.OpenFile(rotatedFileName, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0600)
     checkError(fmt.Sprintf("error opening %s", rotatedFileName), err)
@@ -128,6 +133,7 @@ func main() {
     }()
 
     for e := range eventChan {
+        log.Info("HERE", e)
         checkError("serializing event", enc.Encode(e))
     }
 }
