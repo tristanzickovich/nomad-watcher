@@ -8,6 +8,7 @@ import (
     "path/filepath"
     "io"
     "archive/zip"
+    "time"
 
     flags "github.com/jessevdk/go-flags"
     log "github.com/Sirupsen/logrus"
@@ -37,12 +38,13 @@ func rotatingFileClosed(path string, didRotate bool) {
         return
     }
     go func() {
-        log.Info("This is where to compress and email the log files")
-        err := ZipFiles("output", path)
+        targetfileName := time.Now().Add(-1*time.Hour).Format("2006-01-02")+".zip"
+        targetFilePath := filepath.Join("zipped-logs", targetfileName)
+        err := ZipFiles(targetFilePath, path)
         if err != nil {
             log.Fatal(err)
         }
-        fmt.Println("Zipped File: " + "output")
+        fmt.Println("Zipped File: " + targetFilePath)
     }()
 }
 
@@ -87,7 +89,6 @@ func main() {
     }
 
     if opts.LogRotate {
-        log.Info("Log Rotation enabled, please see /rotated-logs/<<date>> for most recent logs" )
         rotatedFileName = initRotatedFile()
         log.SetOutput(rotatedFile)
     } else {
