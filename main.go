@@ -23,6 +23,7 @@ var (
     version string = "undef"
     rotatedFile *dailyrotate.File
     rotatedFileName string
+    evtsFp *os.File
 )
 
 type Options struct {
@@ -30,33 +31,6 @@ type Options struct {
     LogRotate bool   `env:"LOG_ROTATE" long:"log-rotate" description:"enable log rotation"`
     LogFile string   `env:"LOG_FILE"   long:"log-file"   description:"path to JSON log file"`
     EventFile string `env:"EVENT_FILE" long:"event-file" description:"path to JSON event file" required:"true"`
-}
-
-func rotatingFileClosed(path string, didRotate bool) {
-    fmt.Printf("we just closed a file '%s', didRotate: %v\n", path, didRotate)
-    if !didRotate {
-        return
-    }
-    go func() {
-        targetfileName := time.Now().Add(-1*time.Hour).Format("2006-01-02")+".zip"
-        targetFilePath := filepath.Join("zipped-logs", targetfileName)
-        err := ZipFiles(targetFilePath, path)
-        if err != nil {
-            log.Fatal(err)
-        }
-        fmt.Println("Zipped File: " + targetFilePath)
-    }()
-}
-
-func initRotatedFile() string{
-    var err error
-    rotatedFilePath := filepath.Join("rotated-logs", "2006-01-02.log")
-    rotatedFile, err = dailyrotate.NewFile(rotatedFilePath, rotatingFileClosed)
-    _,err  = io.WriteString(rotatedFile,"")
-    if err != nil {
-      log.Panic("err: %s", err)
-    }
-    return rotatedFilePath
 }
 
 func main() {
@@ -88,21 +62,22 @@ func main() {
         log.SetOutput(logFp)
     }
 
+    enc := json.NewEncoder(os.Stdout)
     if opts.LogRotate {
-        rotatedFileName = initRotatedFile()
+        rotatedFile = initRotatedFile()
         log.SetOutput(rotatedFile)
+        defer rotatedFile.Close()
+        enc = json.NewEncoder(rotatedFile)
     } else {
         rotatedFileName = opts.EventFile
+        evtsFp, err = os.OpenFile(rotatedFileName, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0600)
+        checkError(fmt.Sprintf("error opening %s", rotatedFileName), err)
+        defer evtsFp.Close()
+        enc = json.NewEncoder(evtsFp)
     }
-
-    evtsFp, err := os.OpenFile(rotatedFileName, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0600)
-    checkError(fmt.Sprintf("error opening %s", rotatedFileName), err)
-    defer evtsFp.Close()
 
     nomadClient, err := nomad.NewClient(nomad.DefaultConfig())
     checkError("creating Nomad client", err)
-
-    enc := json.NewEncoder(rotatedFile)
 
     eventChan := make(chan interface{})
 
@@ -140,6 +115,33 @@ func main() {
     for e := range eventChan {
         checkError("serializing event", enc.Encode(e))
     }
+}
+
+func initRotatedFile() *dailyrotate.File{
+    var err error
+    rotatedFilePath := filepath.Join("rotated-logs", "2006-01-02.log")
+    rotatedFile, err := dailyrotate.NewFile(rotatedFilePath, rotatingFileClosed)
+    _,err  = io.WriteString(rotatedFile,"")
+    if err != nil {
+      log.Panic("err: %s", err)
+    }
+    return rotatedFile
+}
+
+func rotatingFileClosed(path string, didRotate bool) {
+    fmt.Printf("we just closed a file '%s', didRotate: %v\n", path, didRotate)
+    if !didRotate {
+        return
+    }
+    go func() {
+        targetfileName := time.Now().Add(-1*time.Hour).Format("2006-01-02")+".zip"
+        targetFilePath := filepath.Join("zipped-logs", targetfileName)
+        err := ZipFiles(targetFilePath, path)
+        if err != nil {
+            log.Fatal(err)
+        }
+        fmt.Println("Zipped File: " + targetFilePath)
+    }()
 }
 
 func ZipFiles(filename string, file string) error {
