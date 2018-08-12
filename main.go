@@ -138,7 +138,6 @@ func main() {
     }()
 
     for e := range eventChan {
-        log.Info("HERE", e)
         checkError("serializing event", enc.Encode(e))
     }
 }
