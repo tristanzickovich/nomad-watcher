@@ -68,6 +68,9 @@ func main() {
         log.SetOutput(rotatedFile)
         defer rotatedFile.Close()
         enc = json.NewEncoder(rotatedFile)
+        if _, err := os.Stat("zipped-logs"); os.IsNotExist(err) {
+            os.Mkdir("zipped-logs", 0600)
+        }
     } else {
         rotatedFileName = opts.EventFile
         evtsFp, err = os.OpenFile(rotatedFileName, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0600)
