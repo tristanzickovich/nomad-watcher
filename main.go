@@ -48,6 +48,7 @@ func main() {
     }
 
     if opts.LogZip {
+        log.Info("Log Zip Enabled")
         logZip = true
         if _, err := os.Stat("zipped-logs"); os.IsNotExist(err) {
             os.Mkdir("zipped-logs", 0777)
@@ -71,10 +72,13 @@ func main() {
         log.SetOutput(logFp)
     }
 
+    log.Debug("hi there! (tickertape tickertape)")
+    log.Infof("version: %s", version)
+
     enc := json.NewEncoder(os.Stdout)
     if opts.LogRotate {
+        log.Info("Log Rotate Enabled")
         rotatedFile = initRotatedFile()
-        log.SetOutput(rotatedFile)
         defer rotatedFile.Close()
         enc = json.NewEncoder(rotatedFile)
     } else {
