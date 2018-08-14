@@ -24,11 +24,13 @@ var (
     rotatedFile *dailyrotate.File
     rotatedFileName string
     evtsFp *os.File
+    logZip bool = false
 )
 
 type Options struct {
     Debug bool       `env:"DEBUG"      long:"debug"      description:"enable debug"`
     LogRotate bool   `env:"LOG_ROTATE" long:"log-rotate" description:"enable log rotation"`
+    LogZip bool      `env:"LOG_ZIP"    long:"log-zip"    description:"enable zipping of rotated logs"`
     LogFile string   `env:"LOG_FILE"   long:"log-file"   description:"path to JSON log file"`
     EventFile string `env:"EVENT_FILE" long:"event-file" description:"path to JSON event file" required:"true"`
 }
@@ -43,6 +45,13 @@ func main() {
 
     if opts.Debug {
         log.SetLevel(log.DebugLevel)
+    }
+
+    if opts.LogZip {
+        logZip = true
+        if _, err := os.Stat("zipped-logs"); os.IsNotExist(err) {
+            os.Mkdir("zipped-logs", 0777)
+        }
     }
 
     if opts.LogFile != "" {
@@ -68,9 +77,6 @@ func main() {
         log.SetOutput(rotatedFile)
         defer rotatedFile.Close()
         enc = json.NewEncoder(rotatedFile)
-        if _, err := os.Stat("zipped-logs"); os.IsNotExist(err) {
-            os.Mkdir("zipped-logs", 0600)
-        }
     } else {
         rotatedFileName = opts.EventFile
         evtsFp, err = os.OpenFile(rotatedFileName, os.O_WRONLY | os.O_APPEND | os.O_CREATE, 0600)
@@ -132,18 +138,20 @@ func initRotatedFile() *dailyrotate.File{
 }
 
 func rotatingFileClosed(path string, didRotate bool) {
-    fmt.Printf("we just closed a file '%s', didRotate: %v\n", path, didRotate)
+    fmt.Printf("we just closed a file '%s', didRotate: %v, logZip: %v\n", path, didRotate, logZip)
     if !didRotate {
         return
     }
     go func() {
-        targetfileName := time.Now().Add(-1*time.Hour).Format("2006-01-02")+".zip"
+      if logZip{
+        targetfileName := time.Now().Add(-12*time.Hour).Format("2006-01-02")+".zip"
         targetFilePath := filepath.Join("zipped-logs", targetfileName)
         err := ZipFiles(targetFilePath, path)
         if err != nil {
             log.Fatal(err)
         }
         fmt.Println("Zipped File: " + targetFilePath)
+      }
     }()
 }
 
