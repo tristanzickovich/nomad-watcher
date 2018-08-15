@@ -78,7 +78,7 @@ func main() {
     enc := json.NewEncoder(os.Stdout)
     if opts.LogRotate {
         log.Info("Log Rotate Enabled")
-        rotatedFile = initRotatedFile()
+        rotatedFile = initRotatedFile(opts.EventFile)
         defer rotatedFile.Close()
         enc = json.NewEncoder(rotatedFile)
     } else {
@@ -130,9 +130,9 @@ func main() {
     }
 }
 
-func initRotatedFile() *dailyrotate.File{
+func initRotatedFile(eventFileLocation string) *dailyrotate.File{
     var err error
-    rotatedFilePath := filepath.Join("rotated-logs", "2006-01-02.log")
+    rotatedFilePath := filepath.Join(eventFileLocation, "2006-01-02.log")
     rotatedFile, err := dailyrotate.NewFile(rotatedFilePath, rotatingFileClosed)
     _,err  = io.WriteString(rotatedFile,"")
     if err != nil {
