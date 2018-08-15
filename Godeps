@@ -5,7 +5,7 @@
 github.com/jessevdk/go-flags 1acbbaff2f347c412a0c7884873bd72cc9c1f5b4
 github.com/Sirupsen/logrus   27b713cfd2742876645e3692a488c5e3fd65361d
 github.com/hashicorp/nomad/api v0.5.4
-
+github.com/kjk/dailyrotate beaeffc0fc487826d2808e72fa9c9e8f2e63b61f
 
 ## test
 github.com/onsi/ginkgo/ginkgo d94e2f4000332f62b356ecb2840c98f4218f5358
